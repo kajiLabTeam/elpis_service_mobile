@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "241536329134",
+    "project_id": "elpis-2eb46",
+    "storage_bucket": "elpis-2eb46.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:241536329134:android:0f35d290d5273b270d143f",
+        "android_client_info": {
+          "package_name": "net.kajilab.elpissender"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBDpH_vevYsXmvGh3vd0si9E3dGZtPSlco"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
