@@ -17,8 +17,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun WebViewComponent(
-    url: String,
-    topAppBarActions: ( List<@Composable () -> Unit>) -> Unit
+    geoJsonString: String,
+    topAppBarActions: (List<@Composable () -> Unit>) -> Unit
 ) {
     val context = LocalContext.current
     var webView = remember { WebView(context) }
@@ -43,20 +43,31 @@ fun WebViewComponent(
                 )
             }
         },
-    ) {
-        webView = it
-        it.settings.javaScriptEnabled = true
-        it.settings.domStorageEnabled = true
-        it.webViewClient = WebViewClient()
-        it.loadUrl(url)
-    }
+        update = {
+            webView = it
+            it.settings.javaScriptEnabled = true
+            it.settings.domStorageEnabled = true
+            
+            // WebViewClientを一度だけ設定
+            it.webViewClient = object : WebViewClient() {
+                override fun onPageFinished(view: WebView?, url: String?) {
+                    // JavaScript関数を呼び出してGeoJSONを渡す
+                    val escaped = geoJsonString.replace("'", "\\'")
+                    view?.evaluateJavascript("window.setGeoJsonData('" + escaped + "');", null)
+                }
+            }
+            
+            // assetsのHTMLを読み込む
+            it.loadUrl("file:///android_asset/floor_map.html")
+        }
+    )
 }
 
 @Preview
 @Composable
 fun PreviewWebViewComponent() {
     WebViewComponent(
-        url = "https://google.com/",
+        geoJsonString = "{}",
         topAppBarActions = {}
     )
 }
