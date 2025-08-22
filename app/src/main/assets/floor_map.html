@@ -23,19 +23,7 @@
     </style>
   </head>
   <body>
-    <!-- GeoJSONデータを表示するための領域 -->
-    <p
-      id="geojson-string"
-      style="
-        font-size: 10px;
-        word-break: break-all;
-        white-space: pre-wrap;
-        background: #f8f8f8;
-        border: 1px solid #ccc;
-        margin: 0;
-        padding: 4px;
-      "
-    ></p>
+
     <!-- 地図を描画するための div -->
     <div id="map"></div>
 
@@ -546,13 +534,6 @@
         const bounds = window.currentFloorLayer.getBounds();
         map.fitBounds(bounds, { padding: [20, 20] });
         
-        // GeoJSONデータを<p>に表示
-        document.getElementById("geojson-string").textContent = JSON.stringify(
-          geoJsonData,
-          null,
-          2
-        );
-        
         // クリック機能が正しく動作することを確認
         console.log('GeoJSON data loaded, click functionality should work now');
         
@@ -567,12 +548,7 @@
         "features": []
       };
 
-      // GeoJSONデータを<p>に表示
-      document.getElementById("geojson-string").textContent = JSON.stringify(
-        floorMapData,
-        null,
-        2
-      );
+
 
       // ──────────────────────────────
       // 2. Leaflet マップを初期化
