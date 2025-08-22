@@ -47,7 +47,7 @@
       //    先ほどの回答で示した「大学のフロアマップ」を GeoJSON フォーマットで定義します。
       //    必要があれば座標を実測値に合わせて修正してください。
       // ──────────────────────────────
-      const floorMapData = {
+      let floorMapData = {
         type: "FeatureCollection",
         crs: { type: "name", properties: { name: "CRS:PIXEL" } },
         features: [
@@ -457,6 +457,116 @@
         ],
       };
 
+      // ──────────────────────────────
+      // 8. AndroidからBase64エンコードされたGeoJSONを受け取る関数
+      // ──────────────────────────────
+      window.setGeoJsonDataFromBase64 = function(base64Data) {
+        try {
+          // Base64デコード
+          const decodedString = atob(base64Data);
+          const geoJsonData = JSON.parse(decodedString);
+          
+          loadGeoJsonData(geoJsonData);
+          console.log('GeoJSON data loaded successfully from Android (Base64)');
+          
+          // Android側から指定された部屋IDをハイライト
+          if (typeof Android !== 'undefined' && Android.getHighlightRoomId) {
+            const roomId = Android.getHighlightRoomId();
+            if (roomId) {
+              setTimeout(() => {
+                highlightByRoomId(roomId);
+                console.log(`Highlighting room: ${roomId}`);
+              }, 500);
+            }
+          }
+        } catch (error) {
+          console.error('Error loading GeoJSON data from Base64:', error);
+          // エラーが発生した場合はJavaScript Interfaceを試す
+          window.loadGeoJsonFromAndroid();
+        }
+      };
+
+      // ──────────────────────────────
+      // 9. JavaScript Interfaceを使用してAndroidからGeoJSONを受け取る関数
+      // ──────────────────────────────
+      window.loadGeoJsonFromAndroid = function() {
+        try {
+          if (typeof Android !== 'undefined' && Android.getGeoJsonData) {
+            const geoJsonString = Android.getGeoJsonData();
+            const geoJsonData = JSON.parse(geoJsonString);
+            
+            loadGeoJsonData(geoJsonData);
+            console.log('GeoJSON data loaded successfully from Android (Interface)');
+            
+            // Android側から指定された部屋IDをハイライト
+            if (typeof Android !== 'undefined' && Android.getHighlightRoomId) {
+              const roomId = Android.getHighlightRoomId();
+              if (roomId) {
+                setTimeout(() => {
+                  highlightByRoomId(roomId);
+                  console.log(`Highlighting room: ${roomId}`);
+                }, 500);
+              }
+            }
+          } else {
+            console.log('Android interface not available, using default data');
+          }
+        } catch (error) {
+          console.error('Error loading GeoJSON data from Android interface:', error);
+          document.getElementById("geojson-string").textContent = "Error loading GeoJSON data: " + error.message;
+        }
+      };
+
+      // ──────────────────────────────
+      // 10. GeoJSONデータを実際に読み込む共通関数
+      // ──────────────────────────────
+      function loadGeoJsonData(geoJsonData) {
+        // 既存のレイヤーをクリア
+        if (window.currentFloorLayer) {
+          map.removeLayer(window.currentFloorLayer);
+        }
+        
+        // ハイライト状態もリセット
+        highlightedLayer = null;
+        
+        // 新しいGeoJSONデータでレイヤーを作成
+        window.currentFloorLayer = L.geoJSON(geoJsonData, {
+          style: getInitialStyle,
+          onEachFeature: (feature, layer) => {
+            // ポップアップに部屋名や設備名を表示
+            if (feature.properties.name) {
+              layer.bindPopup(
+                `<b>${feature.properties.name}</b><br>Type: ${feature.properties.type}`
+              );
+            }
+          },
+        }).addTo(map);
+        
+        // 地図の表示範囲を新しいGeoJSONの境界に合わせて調整
+        const bounds = window.currentFloorLayer.getBounds();
+        map.fitBounds(bounds, { padding: [20, 20] });
+        
+        // GeoJSONデータを<p>に表示
+        document.getElementById("geojson-string").textContent = JSON.stringify(
+          geoJsonData,
+          null,
+          2
+        );
+        
+        // クリック機能が正しく動作することを確認
+        console.log('GeoJSON data loaded, click functionality should work now');
+        
+        // 自動ハイライト機能はAndroid側から制御
+      }
+
+      // 初期データを設定（Androidからデータが来ない場合のフォールバック）
+      // 既に上で定義されているので、ここでは初期化のみ
+      floorMapData = {
+        "type": "FeatureCollection",
+        "crs": { "type": "name", "properties": { "name": "CRS:PIXEL" } },
+        "features": []
+      };
+
       // GeoJSONデータを<p>に表示
       document.getElementById("geojson-string").textContent = JSON.stringify(
         floorMapData,
@@ -520,7 +630,7 @@
 
       let highlightedLayer = null; // 現在ハイライト中の L.Layer を保持
 
-      const floorLayer = L.geoJSON(floorMapData, {
+      window.currentFloorLayer = L.geoJSON(floorMapData, {
         style: getInitialStyle,
         onEachFeature: (feature, layer) => {
           // ポップアップに部屋名や設備名を表示
@@ -535,7 +645,7 @@
       // ──────────────────────────────
       // 4. 地図の表示範囲を GeoJSON の境界に合わせて調整
       // ──────────────────────────────
-      const bounds = floorLayer.getBounds();
+      const bounds = window.currentFloorLayer.getBounds();
       map.fitBounds(bounds, { padding: [20, 20] });
 
       // ──────────────────────────────
@@ -551,16 +661,18 @@
         let foundLayer = null;
 
         // すべてのポリゴン（レイヤー）を走査して、クリック地点を含むものを探す
-        floorLayer.eachLayer((layer) => {
-          if (!(layer instanceof L.Polygon)) return;
+        if (window.currentFloorLayer) {
+          window.currentFloorLayer.eachLayer((layer) => {
+            if (!(layer instanceof L.Polygon)) return;
 
-          // layer.getBounds() はポリゴンを包含する最小矩形を返す
-          // 今回のサンプルでは矩形を使って部屋を定義しているので
-          // getBounds().contains(e.latlng) 判定で十分です。
-          if (layer.getBounds().contains(e.latlng)) {
-            foundLayer = layer;
-          }
-        });
+            // layer.getBounds() はポリゴンを包含する最小矩形を返す
+            // 今回のサンプルでは矩形を使って部屋を定義しているので
+            // getBounds().contains(e.latlng) 判定で十分です。
+            if (layer.getBounds().contains(e.latlng)) {
+              foundLayer = layer;
+            }
+          });
+        }
 
         // もし既にハイライト中のレイヤーがあれば、元のスタイルに戻す
         if (highlightedLayer) {
@@ -601,12 +713,14 @@
         const clickedLatLng = L.latLng(y, x);
 
         let found = null;
-        floorLayer.eachLayer((layer) => {
-          if (!(layer instanceof L.Polygon)) return;
-          if (layer.getBounds().contains(clickedLatLng)) {
-            found = layer;
-          }
-        });
+        if (window.currentFloorLayer) {
+          window.currentFloorLayer.eachLayer((layer) => {
+            if (!(layer instanceof L.Polygon)) return;
+            if (layer.getBounds().contains(clickedLatLng)) {
+              found = layer;
+            }
+          });
+        }
 
         if (highlightedLayer) {
           const prevFeat = highlightedLayer.feature;
@@ -630,12 +744,47 @@
       }
 
       // ──────────────────────────────
-      // 7. テスト例：画面読み込みから 2 秒後に (x=350, y=200) をハイライトしてみる
-      //    （実際は不要ですが、動作確認用サンプルとして）
+      // 6-2. 部屋IDで直接ハイライトする関数
       // ──────────────────────────────
-      setTimeout(() => {
-        highlightByXY(350, 200);
-      }, 1000);
+      function highlightByRoomId(roomId) {
+        let found = null;
+        if (window.currentFloorLayer) {
+          window.currentFloorLayer.eachLayer((layer) => {
+            if (!(layer instanceof L.Polygon)) return;
+            if (layer.feature.properties.id === roomId) {
+              found = layer;
+            }
+          });
+        }
+
+        if (highlightedLayer) {
+          const prevFeat = highlightedLayer.feature;
+          highlightedLayer.setStyle(getInitialStyle(prevFeat));
+          highlightedLayer = null;
+        }
+
+        if (found) {
+          found.setStyle({
+            fillColor: "#ffff00",
+            fillOpacity: 0.6,
+            color: "#ff0000",
+            weight: 2,
+          });
+          highlightedLayer = found;
+          const p = found.feature.properties;
+          found
+            .bindPopup(`<b>現在地と推定された部屋:</b><br>${p.name} (${p.id})`)
+            .openPopup();
+          console.log(`Room ${roomId} highlighted successfully`);
+        } else {
+          console.log(`Room ${roomId} not found`);
+        }
+      }
+
+      // ──────────────────────────────
+      // 7. 自動ハイライト機能はAndroid側から制御
+      //    （HTMLファイルには直接書かない）
+      // ──────────────────────────────
     </script>
   </body>
 </html>
